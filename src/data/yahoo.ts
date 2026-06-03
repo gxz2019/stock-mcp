@@ -340,6 +340,164 @@ export async function fetchInsiderActivity(symbol: string): Promise<InsiderTrans
   }));
 }
 
+// ─── Market Movers ────────────────────────────────────────────────────────────
+
+export interface MoverItem {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  changePercent: string;
+  volume: number;
+  marketCap: number | null;
+}
+
+function mapQuoteToMover(q: Record<string, unknown>): MoverItem {
+  return {
+    symbol: String(q.symbol ?? ""),
+    name: String(q.longName ?? q.shortName ?? q.symbol ?? ""),
+    price: Number(q.regularMarketPrice ?? 0),
+    change: Number(q.regularMarketChange ?? 0),
+    changePercent: (Number(q.regularMarketChangePercent ?? 0).toFixed(2)) + "%",
+    volume: Number(q.regularMarketVolume ?? 0),
+    marketCap: q.marketCap != null ? Number(q.marketCap) : null,
+  };
+}
+
+export async function fetchMarketMovers(type: "gainers" | "losers" | "actives", count = 20): Promise<MoverItem[]> {
+  process.stderr.write(`[yahoo] fetchMarketMovers type=${type} count=${count}\n`);
+  let result: Record<string, unknown>;
+  if (type === "gainers") {
+    result = await (yf as unknown as Record<string, (opts: unknown) => Promise<Record<string, unknown>>>)
+      .dailyGainers({ count, region: "US" });
+  } else if (type === "losers") {
+    result = await (yf as unknown as Record<string, (opts: unknown) => Promise<Record<string, unknown>>>)
+      .dailyLosers({ count, region: "US" });
+  } else {
+    result = await (yf as unknown as Record<string, (opts: unknown) => Promise<Record<string, unknown>>>)
+      .mostActives({ count, region: "US" });
+  }
+  const quotes = (result.quotes as Record<string, unknown>[]) ?? [];
+  return quotes.map(mapQuoteToMover);
+}
+
+// ─── Dividend History ─────────────────────────────────────────────────────────
+
+export interface DividendInfo {
+  symbol: string;
+  currentYield: number | null;
+  annualDividend: number | null;
+  exDividendDate: string | null;
+  consecutiveYears: number | null;
+  history: { date: string; amount: number }[];
+}
+
+export async function fetchDividendHistory(symbol: string): Promise<DividendInfo> {
+  process.stderr.write(`[yahoo] fetchDividendHistory symbol=${symbol}\n`);
+  const fiveYearsAgo = new Date(Date.now() - 5 * 365 * 86400_000).toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [summaryResult, histResult] = await Promise.allSettled([
+    yf.quoteSummary(symbol, { modules: ["summaryDetail", "defaultKeyStatistics"] }),
+    yf.historical(symbol, { period1: fiveYearsAgo, period2: today, events: "dividends" }),
+  ]);
+
+  const detail = summaryResult.status === "fulfilled"
+    ? summaryResult.value.summaryDetail as Record<string, unknown> | undefined : undefined;
+
+  const history = histResult.status === "fulfilled"
+    ? (histResult.value as unknown as { date: Date; dividends: number }[])
+        .filter((r) => r.dividends != null)
+        .map((r) => ({ date: r.date.toISOString().slice(0, 10), amount: r.dividends }))
+        .reverse()
+    : [];
+
+  const consecutiveYears = history.length > 0
+    ? new Set(history.map((h) => h.date.slice(0, 4))).size : null;
+
+  return {
+    symbol,
+    currentYield: detail?.dividendYield as number | null ?? null,
+    annualDividend: detail?.dividendRate as number | null ?? null,
+    exDividendDate: detail?.exDividendDate instanceof Date
+      ? detail.exDividendDate.toISOString().slice(0, 10) : null,
+    consecutiveYears,
+    history,
+  };
+}
+
+// ─── Institutional Holders ────────────────────────────────────────────────────
+
+export interface InstitutionalHolder {
+  organization: string;
+  pctHeld: number | null;
+  shares: number | null;
+  value: number | null;
+  reportDate: string | null;
+}
+
+export async function fetchInstitutionalHolders(symbol: string): Promise<InstitutionalHolder[]> {
+  process.stderr.write(`[yahoo] fetchInstitutionalHolders symbol=${symbol}\n`);
+  const summary = await yf.quoteSummary(symbol, {
+    modules: ["institutionOwnership"] as never[],
+  });
+  const ownership = summary.institutionOwnership as Record<string, unknown> | undefined;
+  const holders = (ownership?.ownershipList as Record<string, unknown>[]) ?? [];
+  return holders.slice(0, 10).map((h) => ({
+    organization: String(h.organization ?? ""),
+    pctHeld: h.pctHeld != null ? Math.round(Number(h.pctHeld) * 10000) / 100 : null,
+    shares: h.position != null ? Number(h.position) : null,
+    value: h.value != null ? Number(h.value) : null,
+    reportDate: h.reportDate instanceof Date ? h.reportDate.toISOString().slice(0, 10) : null,
+  }));
+}
+
+// ─── Similar Stocks ───────────────────────────────────────────────────────────
+
+export interface SimilarStock {
+  symbol: string;
+  name: string;
+  price: number;
+  changePercent: string;
+  marketCap: number | null;
+  pe: number | null;
+  sector: string | null;
+}
+
+export async function fetchSimilarStocks(symbol: string): Promise<SimilarStock[]> {
+  process.stderr.write(`[yahoo] fetchSimilarStocks symbol=${symbol}\n`);
+  const recs = await (yf as unknown as Record<string, (sym: string) => Promise<Record<string, unknown>>>)
+    .recommendedSymbols(symbol);
+  const symbols: string[] = ((recs.recommendedSymbols as Record<string, unknown>[]) ?? [])
+    .slice(0, 8)
+    .map((r) => String(r.symbol ?? ""))
+    .filter(Boolean);
+
+  if (symbols.length === 0) return [];
+
+  const quotes = await fetchUSQuotes(symbols);
+  const profiles = await Promise.allSettled(
+    symbols.map((s) => yf.quoteSummary(s, { modules: ["price", "summaryProfile"] }))
+  );
+
+  return quotes.map((q, i) => {
+    const p = profiles[i];
+    const profile = p.status === "fulfilled"
+      ? p.value.summaryProfile as Record<string, unknown> | undefined : undefined;
+    const price = p.status === "fulfilled"
+      ? p.value.price as Record<string, unknown> | undefined : undefined;
+    return {
+      symbol: q.symbol,
+      name: q.name,
+      price: q.price,
+      changePercent: q.changePercent,
+      marketCap: price?.marketCap != null ? Number(price.marketCap) : q.marketCap,
+      pe: price?.trailingPE != null ? Number(price.trailingPE) : null,
+      sector: profile?.sector ? String(profile.sector) : null,
+    };
+  });
+}
+
 export async function fetchStockProfile(symbol: string): Promise<StockProfile> {
   process.stderr.write(`[yahoo] fetchStockProfile symbol=${symbol}\n`);
   const summary = await yf.quoteSummary(symbol, {

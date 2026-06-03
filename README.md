@@ -26,6 +26,10 @@
 | `get_earnings_calendar` | 下次财报日期 + 近4季度 EPS 历史 |
 | `get_stock_news` | 个股最新新闻（近7天） |
 | `get_insider_activity` | 高管/内部人买卖记录（SEC Form 4） |
+| `get_market_movers` | 当日涨幅榜 / 跌幅榜 / 成交量异动榜 |
+| `get_dividend_history` | 分红历史、股息率、除息日 |
+| `get_institutional_holders` | 前10大机构持仓比例及变动 |
+| `get_similar_stocks` | 同行业可比公司估值对比 |
 | `get_stock_full_overview` | 复合工具：行情 + 基本面 + 评级 + 新闻，一次返回 |
 | `search_stock` | 按名称或代码搜索 |
 
