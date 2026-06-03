@@ -5,7 +5,7 @@ import { searchStockTool } from "./search";
 import { getUsIndicesTool, getStockProfileTool, getEarningsCalendarTool, getUsSectorHeatmapTool } from "./us-market";
 import { getCryptoOverviewTool, getCryptoTopTool, getCryptoCatsTool, getCryptoFundingTool, getCryptoLiquidationTool } from "./crypto";
 import { getFinancialsTool, getAnalystRatingTool, getStockNewsTool, getInsiderActivityTool, getStockFullOverviewTool } from "./us-fundamentals";
-import { getMarketMoversTool, getDividendHistoryTool, getInstitutionalHoldersTool, getSimilarStocksTool } from "./us-market-b";
+import { getMarketMoversTool, getDividendHistoryTool, getInstitutionalHoldersTool, getSimilarStocksTool, getShortInterestTool } from "./us-market-b";
 
 export * from "./types";
 
@@ -32,6 +32,7 @@ export const tools: ToolDef[] = [
   getDividendHistoryTool,
   getInstitutionalHoldersTool,
   getSimilarStocksTool,
+  getShortInterestTool,
 ];
 
 export const toolMap = new Map<string, ToolDef>(

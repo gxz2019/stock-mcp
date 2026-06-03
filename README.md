@@ -30,6 +30,7 @@
 | `get_dividend_history` | 分红历史、股息率、除息日 |
 | `get_institutional_holders` | 前10大机构持仓比例及变动 |
 | `get_similar_stocks` | 同行业可比公司估值对比 |
+| `get_short_interest` | 做空比例、空头回补天数、与上月对比 |
 | `get_stock_full_overview` | 复合工具：行情 + 基本面 + 评级 + 新闻，一次返回 |
 | `search_stock` | 按名称或代码搜索 |
 

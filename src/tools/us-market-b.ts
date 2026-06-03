@@ -4,6 +4,7 @@ import {
   fetchDividendHistory,
   fetchInstitutionalHolders,
   fetchSimilarStocks,
+  fetchShortInterest,
 } from "../data/yahoo";
 import type { ToolDef } from "./types";
 import { ok, err } from "./types";
@@ -121,6 +122,33 @@ export const getSimilarStocksTool: ToolDef = {
     if (!parsed.success) return err(parsed.error.message);
     try {
       return ok(await fetchSimilarStocks(parsed.data.symbol));
+    } catch (e) {
+      return err((e as Error).message);
+    }
+  },
+};
+
+// ─── get_short_interest ───────────────────────────────────────────────────────
+
+export const getShortInterestTool: ToolDef = {
+  tool: {
+    name: "get_short_interest",
+    description:
+      "获取美股做空数据：空头股数、做空占流通盘比例、空头回补天数（Short Ratio）、与上月对比变化。" +
+      "空头回补天数越高代表逼空风险越大。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", description: "美股代码，如 GME、TSLA、NVDA" },
+      },
+      required: ["symbol"],
+    },
+  },
+  handler: async (input) => {
+    const parsed = SymbolInput.safeParse(input);
+    if (!parsed.success) return err(parsed.error.message);
+    try {
+      return ok(await fetchShortInterest(parsed.data.symbol));
     } catch (e) {
       return err((e as Error).message);
     }

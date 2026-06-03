@@ -340,6 +340,48 @@ export async function fetchInsiderActivity(symbol: string): Promise<InsiderTrans
   }));
 }
 
+// ─── Short Interest ───────────────────────────────────────────────────────────
+
+export interface ShortInterest {
+  symbol: string;
+  sharesShort: number | null;
+  sharesShortPriorMonth: number | null;
+  shortRatio: number | null;
+  shortPercentOfFloat: number | null;
+  floatShares: number | null;
+  sharesOutstanding: number | null;
+  settlementDate: string | null;
+  changeFromPriorMonth: number | null;
+}
+
+export async function fetchShortInterest(symbol: string): Promise<ShortInterest> {
+  process.stderr.write(`[yahoo] fetchShortInterest symbol=${symbol}\n`);
+  const summary = await yf.quoteSummary(symbol, {
+    modules: ["defaultKeyStatistics"] as never[],
+  });
+  const stats = summary.defaultKeyStatistics as Record<string, unknown> | undefined;
+
+  const sharesShort = stats?.sharesShort != null ? Number(stats.sharesShort) : null;
+  const priorMonth = stats?.sharesShortPriorMonth != null ? Number(stats.sharesShortPriorMonth) : null;
+  const change = sharesShort !== null && priorMonth !== null && priorMonth !== 0
+    ? Math.round(((sharesShort - priorMonth) / priorMonth) * 10000) / 100
+    : null;
+
+  return {
+    symbol,
+    sharesShort,
+    sharesShortPriorMonth: priorMonth,
+    shortRatio: stats?.shortRatio != null ? Number(stats.shortRatio) : null,
+    shortPercentOfFloat: stats?.shortPercentOfFloat != null
+      ? Math.round(Number(stats.shortPercentOfFloat) * 10000) / 100 : null,
+    floatShares: stats?.floatShares != null ? Number(stats.floatShares) : null,
+    sharesOutstanding: stats?.sharesOutstanding != null ? Number(stats.sharesOutstanding) : null,
+    settlementDate: stats?.dateShortInterest instanceof Date
+      ? stats.dateShortInterest.toISOString().slice(0, 10) : null,
+    changeFromPriorMonth: change,
+  };
+}
+
 // ─── Market Movers ────────────────────────────────────────────────────────────
 
 export interface MoverItem {
