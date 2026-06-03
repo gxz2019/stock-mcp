@@ -4,6 +4,7 @@ import { getKlineTool, getKlineWithIndicatorsTool } from "./kline";
 import { searchStockTool } from "./search";
 import { getUsIndicesTool, getStockProfileTool, getEarningsCalendarTool, getUsSectorHeatmapTool } from "./us-market";
 import { getCryptoOverviewTool, getCryptoTopTool, getCryptoCatsTool, getCryptoFundingTool, getCryptoLiquidationTool } from "./crypto";
+import { getFinancialsTool, getAnalystRatingTool, getStockNewsTool, getInsiderActivityTool, getStockFullOverviewTool } from "./us-fundamentals";
 
 export * from "./types";
 
@@ -21,6 +22,11 @@ export const tools: ToolDef[] = [
   getCryptoCatsTool,
   getCryptoFundingTool,
   getCryptoLiquidationTool,
+  getFinancialsTool,
+  getAnalystRatingTool,
+  getStockNewsTool,
+  getInsiderActivityTool,
+  getStockFullOverviewTool,
 ];
 
 export const toolMap = new Map<string, ToolDef>(
