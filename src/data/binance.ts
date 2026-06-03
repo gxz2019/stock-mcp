@@ -63,6 +63,56 @@ export async function fetchCryptoTickers(symbols: string[]): Promise<CryptoTicke
   return results.filter(Boolean) as CryptoTicker[];
 }
 
+export interface MarketSentiment {
+  symbol: string;
+  openInterest: number;
+  openInterestUnit: string;
+  globalLongRatio: number;
+  globalShortRatio: number;
+  topAccountLongRatio: number;
+  topAccountShortRatio: number;
+  topPositionLongRatio: number;
+  topPositionShortRatio: number;
+  takerBuyRatio: number;
+  takerSellRatio: number;
+}
+
+export async function fetchMarketSentiment(symbol: string, period = "1h"): Promise<MarketSentiment> {
+  const sym = normalizeSymbol(symbol);
+  process.stderr.write(`[binance] fetchMarketSentiment symbol=${sym} period=${period}\n`);
+
+  const base = "https://fapi.binance.com";
+  const params = `symbol=${sym}&period=${period}&limit=1`;
+
+  const [oiRes, globalRes, topAccRes, topPosRes, takerRes] = await Promise.all([
+    axios.get(`${base}/fapi/v1/openInterest?symbol=${sym}`, { timeout: 5000 }),
+    axios.get(`${base}/futures/data/globalLongShortAccountRatio?${params}`, { timeout: 5000 }),
+    axios.get(`${base}/futures/data/topLongShortAccountRatio?${params}`, { timeout: 5000 }),
+    axios.get(`${base}/futures/data/topLongShortPositionRatio?${params}`, { timeout: 5000 }),
+    axios.get(`${base}/futures/data/takerlongshortRatio?${params}`, { timeout: 5000 }),
+  ]);
+
+  const oi = oiRes.data;
+  const global = globalRes.data[0] ?? {};
+  const topAcc = topAccRes.data[0] ?? {};
+  const topPos = topPosRes.data[0] ?? {};
+  const taker = takerRes.data[0] ?? {};
+
+  return {
+    symbol: sym,
+    openInterest: parseFloat(oi.openInterest),
+    openInterestUnit: sym.replace("USDT", ""),
+    globalLongRatio: parseFloat(global.longAccount ?? "0"),
+    globalShortRatio: parseFloat(global.shortAccount ?? "0"),
+    topAccountLongRatio: parseFloat(topAcc.longAccount ?? "0"),
+    topAccountShortRatio: parseFloat(topAcc.shortAccount ?? "0"),
+    topPositionLongRatio: parseFloat(topPos.longPosition ?? "0"),
+    topPositionShortRatio: parseFloat(topPos.shortPosition ?? "0"),
+    takerBuyRatio: parseFloat(taker.buySellRatio ?? "0"),
+    takerSellRatio: taker.buySellRatio ? (1 / parseFloat(taker.buySellRatio)) : 0,
+  };
+}
+
 export async function fetchCryptoKlines(
   symbol: string,
   interval: string = "1d",

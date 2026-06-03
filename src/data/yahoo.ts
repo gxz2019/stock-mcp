@@ -108,6 +108,56 @@ export async function fetchUSKlines(
   return bars;
 }
 
+export interface EarningsCalendar {
+  symbol: string;
+  nextEarningsDate: string | null;
+  earningsDatesRange: string | null;
+  exDividendDate: string | null;
+  dividendDate: string | null;
+  recentEPS: { date: string; actual: number | null; estimate: number | null; surprise: number | null }[];
+}
+
+export async function fetchEarningsCalendar(symbol: string): Promise<EarningsCalendar> {
+  process.stderr.write(`[yahoo] fetchEarningsCalendar symbol=${symbol}\n`);
+  const summary = await yf.quoteSummary(symbol, {
+    modules: ["calendarEvents", "earningsHistory"],
+  });
+
+  const cal = summary.calendarEvents as Record<string, unknown> | undefined;
+  const history = summary.earningsHistory as Record<string, unknown> | undefined;
+
+  // 财报日期
+  const earningsDates = cal?.earnings as Record<string, unknown> | undefined;
+  const dateArr = earningsDates?.earningsDate as Date[] | undefined;
+  const nextDate = dateArr && dateArr.length > 0 ? dateArr[0] : null;
+  const endDate = dateArr && dateArr.length > 1 ? dateArr[dateArr.length - 1] : null;
+
+  // 近期 EPS 历史
+  const histArr = (history?.history as Record<string, unknown>[] | undefined) ?? [];
+  const recentEPS = histArr.slice(-4).map((h) => {
+    const date = h.quarter instanceof Date ? h.quarter.toISOString().slice(0, 10) : String(h.quarter ?? "");
+    const actual = typeof h.epsActual === "number" ? h.epsActual : null;
+    const estimate = typeof h.epsEstimate === "number" ? h.epsEstimate : null;
+    const surprise = actual !== null && estimate !== null && estimate !== 0
+      ? Math.round(((actual - estimate) / Math.abs(estimate)) * 10000) / 100
+      : null;
+    return { date, actual, estimate, surprise };
+  });
+
+  return {
+    symbol,
+    nextEarningsDate: nextDate ? (nextDate as Date).toISOString().slice(0, 10) : null,
+    earningsDatesRange: nextDate && endDate
+      ? `${(nextDate as Date).toISOString().slice(0, 10)} ~ ${(endDate as Date).toISOString().slice(0, 10)}`
+      : null,
+    exDividendDate: cal?.exDividendDate instanceof Date
+      ? cal.exDividendDate.toISOString().slice(0, 10) : null,
+    dividendDate: cal?.dividendDate instanceof Date
+      ? cal.dividendDate.toISOString().slice(0, 10) : null,
+    recentEPS,
+  };
+}
+
 export async function fetchStockProfile(symbol: string): Promise<StockProfile> {
   process.stderr.write(`[yahoo] fetchStockProfile symbol=${symbol}\n`);
   const summary = await yf.quoteSummary(symbol, {

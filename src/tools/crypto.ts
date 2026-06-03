@@ -1,6 +1,7 @@
 import { z } from "zod";
 import axios from "axios";
 import { fetchGlobalMarket, fetchTopCoins, fetchFearGreed, fetchCategories } from "../data/coingecko";
+import { fetchMarketSentiment } from "../data/binance";
 import type { ToolDef } from "./types";
 import { ok, err } from "./types";
 
@@ -134,6 +135,58 @@ export const getCryptoFundingTool: ToolDef = {
             };
           } catch {
             return { symbol: sym, error: "not found or not a perpetual contract" };
+          }
+        })
+      );
+      return ok(results);
+    } catch (e) {
+      return err((e as Error).message);
+    }
+  },
+};
+
+const LiquidationInput = z.object({
+  symbols: z.array(z.string()).min(1).max(10),
+  period: z.enum(["5m", "15m", "30m", "1h", "4h", "1d"]).optional(),
+});
+
+export const getCryptoLiquidationTool: ToolDef = {
+  tool: {
+    name: "get_crypto_liquidation",
+    description:
+      "获取加密货币合约市场情绪数据：未平仓合约（OI）、全球多空账户比、主力多空持仓比、吃单买卖比。" +
+      "可用于判断杠杆聚集程度和清算风险。symbols 传币种代码如 ['BTC','ETH']。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbols: {
+          type: "array",
+          items: { type: "string" },
+          description: "币种代码列表，如 ['BTC','ETH']",
+          minItems: 1,
+          maxItems: 10,
+        },
+        period: {
+          type: "string",
+          enum: ["5m", "15m", "30m", "1h", "4h", "1d"],
+          description: "统计周期，默认 1h",
+        },
+      },
+      required: ["symbols"],
+    },
+  },
+  handler: async (input) => {
+    const parsed = LiquidationInput.safeParse(input);
+    if (!parsed.success) return err(parsed.error.message);
+    const { symbols, period = "1h" } = parsed.data;
+
+    try {
+      const results = await Promise.all(
+        symbols.map(async (sym) => {
+          try {
+            return await fetchMarketSentiment(sym, period);
+          } catch {
+            return { symbol: sym.toUpperCase() + "USDT", error: "not available or not a perpetual contract" };
           }
         })
       );
