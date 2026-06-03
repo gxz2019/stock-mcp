@@ -1,10 +1,10 @@
 {
-  "name": "stock-mcp",
+  "name": "xstock-mcp",
   "version": "1.0.0",
   "description": "Stock & Crypto analysis MCP Server",
   "main": "dist/index.js",
   "bin": {
-    "stock-mcp": "dist/index.js"
+    "xstock-mcp": "dist/index.js"
   },
   "scripts": {
     "build": "tsup src/index.ts --format cjs --no-splitting --outDir dist",
