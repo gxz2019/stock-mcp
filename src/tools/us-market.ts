@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { fetchUSQuotes, fetchStockProfile, fetchEarningsCalendar } from "../data/yahoo";
+import { fetchUSQuotes, fetchStockProfile, fetchEarningsCalendar, fetchUsMarketScan } from "../data/yahoo";
 import type { ToolDef } from "./types";
 import { ok, err } from "./types";
 
@@ -77,6 +77,34 @@ export const getUsSectorHeatmapTool: ToolDef = {
           volume: q.volume,
         }))
         .sort((a, b) => parseFloat(b.changePercent) - parseFloat(a.changePercent));
+      return ok(result);
+    } catch (e) {
+      return err((e as Error).message);
+    }
+  },
+};
+
+export const getUsMarketScanTool: ToolDef = {
+  tool: {
+    name: "get_us_market_scan",
+    description:
+      "扫描 S&P 500 全部约500只股票，按量比（今日成交量/90日均量）、涨幅、跌幅各取 Top N 返回。" +
+      "量比越高代表当日异动越强烈，是发现今日热点的核心信号。适合日报选股、盘后复盘。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        topN: {
+          type: "number",
+          description: "各榜单返回数量，默认20，最大50",
+        },
+      },
+      required: [],
+    },
+  },
+  handler: async (input) => {
+    const n = Math.min(Number((input as Record<string, unknown>).topN ?? 20), 50);
+    try {
+      const result = await fetchUsMarketScan(n);
       return ok(result);
     } catch (e) {
       return err((e as Error).message);

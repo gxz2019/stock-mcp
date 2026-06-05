@@ -20,6 +20,15 @@ export interface USQuote {
   marketCap: number | null;
   currency: string;
   exchange: string;
+  averageVolume: number | null;
+  volumeRatio: number | null;
+  marketState: string | null;
+  postMarketPrice: number | null;
+  postMarketChange: number | null;
+  postMarketChangePercent: string | null;
+  preMarketPrice: number | null;
+  preMarketChange: number | null;
+  preMarketChangePercent: string | null;
 }
 
 export interface USKlineBar {
@@ -58,9 +67,12 @@ export async function fetchUSQuotes(symbols: string[]): Promise<USQuote[]> {
     symbols.map(async (symbol) => {
       try {
         const q = await yf.quote(symbol);
+        const raw = q as Record<string, unknown>;
+        const postPct = raw.postMarketChangePercent != null ? Number(raw.postMarketChangePercent) : null;
+        const prePct = raw.preMarketChangePercent != null ? Number(raw.preMarketChangePercent) : null;
         const result: USQuote = {
           symbol: q.symbol,
-          name: (q as Record<string, unknown>).longName as string ?? (q as Record<string, unknown>).shortName as string ?? symbol,
+          name: raw.longName as string ?? raw.shortName as string ?? symbol,
           price: q.regularMarketPrice ?? 0,
           change: q.regularMarketChange ?? 0,
           changePercent: ((q.regularMarketChangePercent ?? 0).toFixed(2)) + "%",
@@ -69,9 +81,20 @@ export async function fetchUSQuotes(symbols: string[]): Promise<USQuote[]> {
           low: q.regularMarketDayLow ?? 0,
           prevClose: q.regularMarketPreviousClose ?? 0,
           volume: q.regularMarketVolume ?? 0,
-          marketCap: (q as Record<string, unknown>).marketCap as number ?? null,
+          marketCap: raw.marketCap as number ?? null,
           currency: q.currency ?? "USD",
-          exchange: (q as Record<string, unknown>).fullExchangeName as string ?? q.exchange ?? "",
+          exchange: raw.fullExchangeName as string ?? q.exchange ?? "",
+          averageVolume: raw.averageDailyVolume3Month != null ? Number(raw.averageDailyVolume3Month) : null,
+          volumeRatio: raw.averageDailyVolume3Month != null && (q.regularMarketVolume ?? 0) > 0
+            ? Math.round((q.regularMarketVolume! / Number(raw.averageDailyVolume3Month)) * 100) / 100
+            : null,
+          marketState: raw.marketState as string ?? null,
+          postMarketPrice: raw.postMarketPrice != null ? Number(raw.postMarketPrice) : null,
+          postMarketChange: raw.postMarketChange != null ? Number(raw.postMarketChange) : null,
+          postMarketChangePercent: postPct != null ? postPct.toFixed(2) + "%" : null,
+          preMarketPrice: raw.preMarketPrice != null ? Number(raw.preMarketPrice) : null,
+          preMarketChange: raw.preMarketChange != null ? Number(raw.preMarketChange) : null,
+          preMarketChangePercent: prePct != null ? prePct.toFixed(2) + "%" : null,
         };
         process.stderr.write(`[yahoo] ${symbol} price=${result.price}\n`);
         return result;
@@ -235,6 +258,9 @@ export interface AnalystRating {
   targetPriceLow: number | null;
   distribution: { strongBuy: number; buy: number; hold: number; sell: number; strongSell: number };
   recentChanges: { date: string; firm: string; action: string; from: string | null; to: string | null }[];
+  lastActionDate: string | null;
+  daysSinceLastAction: number | null;
+  stalenessWarning: string | null;
 }
 
 export async function fetchAnalystRating(symbol: string): Promise<AnalystRating> {
@@ -258,6 +284,14 @@ export async function fetchAnalystRating(symbol: string): Promise<AnalystRating>
     to: h.toGrade ? String(h.toGrade) : null,
   }));
 
+  const lastActionDate = changes.length > 0 ? changes[0].date : null;
+  const daysSinceLastAction = lastActionDate
+    ? Math.floor((Date.now() - new Date(lastActionDate).getTime()) / 86400_000)
+    : null;
+  const stalenessWarning = daysSinceLastAction !== null && daysSinceLastAction > 90
+    ? `分析师评级已 ${daysSinceLastAction} 天未更新（最后动作：${lastActionDate}），目标价参考价值有限`
+    : null;
+
   return {
     symbol,
     consensus: fin?.recommendationKey as string | null ?? null,
@@ -272,6 +306,9 @@ export async function fetchAnalystRating(symbol: string): Promise<AnalystRating>
       strongSell: Number(latest.strongSell ?? 0),
     },
     recentChanges: changes,
+    lastActionDate,
+    daysSinceLastAction,
+    stalenessWarning,
   };
 }
 
@@ -408,19 +445,11 @@ function mapQuoteToMover(q: Record<string, unknown>): MoverItem {
 
 export async function fetchMarketMovers(type: "gainers" | "losers" | "actives", count = 20): Promise<MoverItem[]> {
   process.stderr.write(`[yahoo] fetchMarketMovers type=${type} count=${count}\n`);
-  let result: Record<string, unknown>;
-  if (type === "gainers") {
-    result = await (yf as unknown as Record<string, (opts: unknown) => Promise<Record<string, unknown>>>)
-      .dailyGainers({ count, region: "US" });
-  } else if (type === "losers") {
-    result = await (yf as unknown as Record<string, (opts: unknown) => Promise<Record<string, unknown>>>)
-      .dailyLosers({ count, region: "US" });
-  } else {
-    result = await (yf as unknown as Record<string, (opts: unknown) => Promise<Record<string, unknown>>>)
-      .mostActives({ count, region: "US" });
-  }
+  const scrIdMap = { gainers: "day_gainers", losers: "day_losers", actives: "most_actives" };
+  const result = await (yf as unknown as Record<string, (opts: unknown) => Promise<Record<string, unknown>>>)
+    .screener({ scrIds: scrIdMap[type], count, region: "US" });
   const quotes = (result.quotes as Record<string, unknown>[]) ?? [];
-  return quotes.map(mapQuoteToMover);
+  return quotes.slice(0, count).map(mapQuoteToMover);
 }
 
 // ─── Dividend History ─────────────────────────────────────────────────────────
@@ -538,6 +567,50 @@ export async function fetchSimilarStocks(symbol: string): Promise<SimilarStock[]
       sector: profile?.sector ? String(profile.sector) : null,
     };
   });
+}
+
+// ─── US Market Scan ───────────────────────────────────────────────────────────
+
+import { SP500_SYMBOLS } from "./sp500";
+
+export interface MarketScanResult {
+  topVolumeRatio: USQuote[];
+  topGainers: USQuote[];
+  topLosers: USQuote[];
+  scannedCount: number;
+}
+
+export async function fetchUsMarketScan(topN = 20): Promise<MarketScanResult> {
+  process.stderr.write(`[yahoo] fetchUsMarketScan count=${SP500_SYMBOLS.length}\n`);
+
+  // 分批并行，每批100只
+  const BATCH = 100;
+  const batches: string[][] = [];
+  for (let i = 0; i < SP500_SYMBOLS.length; i += BATCH) {
+    batches.push(SP500_SYMBOLS.slice(i, i + BATCH));
+  }
+  const batchResults = await Promise.all(batches.map((b) => fetchUSQuotes(b)));
+  const all = batchResults.flat().filter((q) => q.price > 0);
+
+  const byVolumeRatio = [...all]
+    .filter((q) => q.volumeRatio != null)
+    .sort((a, b) => (b.volumeRatio ?? 0) - (a.volumeRatio ?? 0))
+    .slice(0, topN);
+
+  const byGain = [...all]
+    .sort((a, b) => parseFloat(b.changePercent) - parseFloat(a.changePercent))
+    .slice(0, topN);
+
+  const byLoss = [...all]
+    .sort((a, b) => parseFloat(a.changePercent) - parseFloat(b.changePercent))
+    .slice(0, topN);
+
+  return {
+    topVolumeRatio: byVolumeRatio,
+    topGainers: byGain,
+    topLosers: byLoss,
+    scannedCount: all.length,
+  };
 }
 
 export async function fetchStockProfile(symbol: string): Promise<StockProfile> {

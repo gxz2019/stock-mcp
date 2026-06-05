@@ -2,7 +2,7 @@ import type { ToolDef } from "./types";
 import { getQuoteTool } from "./quotes";
 import { getKlineTool, getKlineWithIndicatorsTool } from "./kline";
 import { searchStockTool } from "./search";
-import { getUsIndicesTool, getStockProfileTool, getEarningsCalendarTool, getUsSectorHeatmapTool } from "./us-market";
+import { getUsIndicesTool, getStockProfileTool, getEarningsCalendarTool, getUsSectorHeatmapTool, getUsMarketScanTool } from "./us-market";
 import { getCryptoOverviewTool, getCryptoTopTool, getCryptoCatsTool, getCryptoFundingTool, getCryptoLiquidationTool } from "./crypto";
 import { getFinancialsTool, getAnalystRatingTool, getStockNewsTool, getInsiderActivityTool, getStockFullOverviewTool } from "./us-fundamentals";
 import { getMarketMoversTool, getDividendHistoryTool, getInstitutionalHoldersTool, getSimilarStocksTool, getShortInterestTool } from "./us-market-b";
@@ -18,6 +18,7 @@ export const tools: ToolDef[] = [
   getStockProfileTool,
   getEarningsCalendarTool,
   getUsSectorHeatmapTool,
+  getUsMarketScanTool,
   getCryptoOverviewTool,
   getCryptoTopTool,
   getCryptoCatsTool,

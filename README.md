@@ -15,14 +15,15 @@
 
 | 工具 | 说明 |
 |------|------|
-| `get_quote` | 实时行情 |
+| `get_quote` | 实时行情，含盘前 / 盘后价格及涨跌幅 |
 | `get_kline` | K线数据，支持日线 / 周线 / 月线 |
 | `get_kline_with_indicators` | K线 + MA5/10/20/60、RSI14、MACD、布林带（精确计算） |
 | `get_us_indices` | 主要指数：标普500、纳斯达克、道琼斯、罗素2000、VIX |
 | `get_us_sector_heatmap` | 11大行业板块今日涨跌（SPDR ETF） |
+| `get_us_market_scan` | 扫描 S&P 500 全部约500只，按量比 / 涨幅 / 跌幅各取 Top N，用于日报选股和热点发现 |
 | `get_stock_profile` | 公司基本面：市值、PE、行业、简介 |
 | `get_financials` | 财务数据：营收、毛利率、净利润、自由现金流、负债率（年报/季报） |
-| `get_analyst_rating` | 分析师评级分布、目标价、近期评级变动 |
+| `get_analyst_rating` | 分析师评级分布、目标价、近期评级变动（含数据时效性警告） |
 | `get_earnings_calendar` | 下次财报日期 + 近4季度 EPS 历史 |
 | `get_stock_news` | 个股最新新闻（近7天） |
 | `get_insider_activity` | 高管/内部人买卖记录（SEC Form 4） |
